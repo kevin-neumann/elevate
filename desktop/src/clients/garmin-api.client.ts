@@ -77,8 +77,9 @@ export class GarminApiClient {
   ) {}
 
   /**
-   * Garmin does not document the token response fields. Accept the usual shapes:
-   * raw JWT string, { access_token | accessToken | token, expires_at | expiresAt | expires_in | expiresIn }.
+   * Garmin token endpoint answers the bearer token as a raw JWT in a plain text body (as Garmin's own client
+   * "connect-personal-api-python" reads it). JSON shapes are also accepted in case Garmin changes the format:
+   * { access_token | accessToken | token, expires_at | expiresAt | expires_in | expiresIn }.
    * Expiry falls back on JWT "exp" claim, then on the documented 24h lifetime.
    */
   public static parseTokenResponse(data: any, now: number): GarminAccessToken {
@@ -155,7 +156,9 @@ export class GarminApiClient {
 
     return this.httpClient
       .post(GarminApiClient.TOKEN_URL, null, {
-        headers: { Authorization: `ApiKey ${apiKey.trim()}`, Accept: "application/json" }
+        // Token endpoint produces plain text: requesting JSON only is refused with HTTP 406
+        headers: { Authorization: `ApiKey ${apiKey.trim()}`, Accept: "*/*" },
+        responseType: "text"
       })
       .then((response: AxiosResponse) => {
         const token = GarminApiClient.parseTokenResponse(response.data, this.getCurrentTime());
@@ -332,7 +335,10 @@ export class GarminApiClient {
       apiKey,
       `${GarminApiClient.ACTIVITY_DOWNLOAD_PATH}/${activityId}`,
       null,
-      { responseType: "arraybuffer", headers: { Accept: "application/zip, application/octet-stream" } },
+      {
+        responseType: "arraybuffer",
+        headers: { Accept: "application/zip, application/x-zip-compressed, application/octet-stream" }
+      },
       options
     ).then(data => Promise.resolve(Buffer.from(data)));
   }

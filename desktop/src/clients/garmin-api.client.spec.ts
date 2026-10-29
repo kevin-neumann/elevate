@@ -79,6 +79,18 @@ describe("GarminApiClient", () => {
   });
 
   describe("Access token", () => {
+    it("should read the raw JWT text body returned by Garmin", done => {
+      const expSeconds = Math.floor(now / 1000) + 24 * 3600;
+      const jwt = fakeJwt(expSeconds);
+      spyOn(httpClient, "post").and.returnValue(Promise.resolve(createResponse(`${jwt}\n`)));
+
+      garminApiClient.exchangeApiKey(apiKey).then(token => {
+        expect(token.accessToken).toEqual(jwt);
+        expect(token.expiresAt).toEqual(expSeconds * 1000);
+        done();
+      });
+    });
+
     it("should exchange api key with ApiKey authorization header", done => {
       const postSpy = spyOn(httpClient, "post").and.returnValue(
         Promise.resolve(createResponse({ access_token: "token-1", expires_in: 86400 }))
@@ -91,6 +103,8 @@ describe("GarminApiClient", () => {
         expect(url).toEqual(GarminApiClient.TOKEN_URL);
         expect(body).toBeNull();
         expect(config.headers.Authorization).toEqual(`ApiKey ${apiKey}`);
+        expect(config.headers.Accept).toEqual("*/*"); // Garmin answers 406 to "application/json"
+        expect(config.responseType).toEqual("text");
         done();
       });
     });
